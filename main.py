@@ -1,56 +1,90 @@
-# Configuração da Base de Dados e FastAPI
-from fastapi import FastAPI, Depends, HTTPException
-from  sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from . import models, schemas, crud
+from fastapi import FastAPI, Depends
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
+from fastapi.middleware.cors import CORSMiddleware
+from database import SessionLocal, get_db
+from models import Empresa, ObrigacaoAcessoria
+from schemas import EmpresaCreate, ObrigacaoAcessoriaCreate
+from typing import List
 
+app = FastAPI(
+    title="API de Empresas",
+    description="API para gerenciar empresas e obrigações acessórias",
+    version="1.0.0",
+    contact={
+        "name": "Seu Nome",
+        "email": "seu_email@example.com",
+    },
+)
 
-# Conexão com o Banco de Dados
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"  # ou use outro banco, como PostgreSQL
+origins = [
+    "http://localhost:8000",
+]
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})  # Para SQLite
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@app.get("/empresas/")
+def read_empresas(db: SessionLocal = Depends(get_db)):
+    return db.query(Empresa).all()
 
+@app.post("/empresas/")
+def create_empresa(empresa: EmpresaCreate, db: SessionLocal = Depends(get_db)):
+    db_empresa = Empresa(**empresa.dict())
+    db.add(db_empresa)
+    db.commit()
+    db.refresh(db_empresa)
+    return db_empresa
 
+@app.get("/empresas/{empresa_id}")
+def read_empresa(empresa_id: int, db: SessionLocal = Depends(get_db)):
+    return db.query(Empresa).filter(Empresa.id == empresa_id).first()
 
-# Config do SQLAlquemy
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@app.put("/empresas/{empresa_id}")
+def update_empresa(empresa_id: int, empresa: EmpresaCreate, db: SessionLocal = Depends(get_db)):
+    db_empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    db_empresa.nome = empresa.nome
+    db_empresa.cnpj = empresa.cnpj
+    db_empresa.endereco = empresa.endereco
+    db_empresa.email = empresa.email
+    db_empresa.telefone = empresa.telefone
+    db.commit()
+    db.refresh(db_empresa)
+    return db_empresa
 
+@app.delete("/empresas/{empresa_id}")
+def delete_empresa(empresa_id: int, db: SessionLocal = Depends(get_db)):
+    db_empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    db.delete(db_empresa)
+    db.commit()
+    return {"mensagem": "Empresa excluída com sucesso"}
 
-# Criar as tabelas no banco de dados
-models.base.metadata.create_all(bind=engine)
+@app.post("/obrigacoes-acessorias/")
+def create_obrigacao_acessoria(obrigacao_acessoria: ObrigacaoAcessoriaCreate, db: SessionLocal = Depends(get_db)):
+    db_obrigacao_acessoria = ObrigacaoAcessoria(**obrigacao_acessoria.dict())
+    db.add(db_obrigacao_acessoria)
+    db.commit()
+    db.refresh(db_obrigacao_acessoria)
+    return db_obrigacao_acessoria
 
-app = FastAPI()
+@app.get("/obrigacoes-acessorias/")
+def read_obrigacoes_acessorias(db: SessionLocal = Depends(get_db)):
+    return db.query(ObrigacaoAcessoria).all()
 
+@app.get("/obrigacoes-acessorias/{obrigacao_acessoria_id}")
+def read_obrigacao_acessoria(obrigacao_acessoria_id: int, db: SessionLocal = Depends(get_db)):
+    return db.query(ObrigacaoAcessoria).filter(ObrigacaoAcessoria.id == obrigacao_acessoria_id).first()
 
-# Para obter a conexão no banco
-
-def get_db():
-    db = SessionLocal()
-    
-    try:
-        yield db
-    finally:
-        db.close()    
-        
-# Endpoint para empresa
-@app.post("/empresas/", response_model=schemas.Empresa)
-def create_empresa(empresa: schemas.EmpresaBase, db: Session = Depends(get_db)):
-    return crud.create_empresa(db=db, empresa=empresa)
-
-# Endpoint para todas as empresas
-@app.get("/empresas/", response_model= list[schemas.Empresa])
-def read_empresa(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_empresas(db=db, skip=skip, limit=limit)
-
-# Endpoint para criar uma obrigação acessória
-@app.post("/empresas/{empresa_id}/obrigacoes/", response_model=schemas.ObrigacaoAcessoria)
-def create_obrigacao(empresa_id: int, obrigacao: schemas.ObrigacaoAcessoriaBase, db: Session = Depends(get_db)):
-    return crud.create_obrigacao_acessoria(db=db, obrigacao=obrigacao, empresa_id=empresa_id)
-
-# Endpoint para obter todas as obrigações acessórias de uma empresa
-@app.get("/empresas/{empresa_id}/obrigacoes/", response_model=list[schemas.ObrigacaoAcessoria])
-def get_obrigacoes(empresa_id: int, db: Session = Depends(get_db)):
-    return crud.get_obrigacoes_por_empresa(db=db, empresa_id=empresa_id)
+@app.put("/obrigacoes-acessorias/{obrigacao_acessoria_id}")
+def update_obrigacao_acessoria(obrigacao_acessoria_id: int, obrigacao_acessoria: ObrigacaoAcessoriaCreate, db: SessionLocal = Depends(get_db)):
+    db_obrigacao_acessoria = db.query(ObrigacaoAcessoria).filter(ObrigacaoAcessoria.id == obrigacao_acessoria_id).first()
+    db_obrigacao_acessoria.nome = obrigacao_acessoria.nome
+    db_obrigacao_acessoria.periodicidade = obrigacao_acessoria.periodicidade
+    db.commit()
+    db.refresh(db_obrigacao_acessoria)
+    return db_obrigacao_acessoria

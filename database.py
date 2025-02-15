@@ -1,13 +1,20 @@
-# Funções CRUD
-from sqlalchemy.orm import Session
-from . import models, schemas 
+from sqlalchemy import create_engine, Engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-def get_user(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+from config import Config
 
-def create_user(db: Session, user: schemas.UserCreate):
-    db_user = models.User(name=user.name, email=user.email, telefone=user.telefone, endereco=user.endereco, cnpj=user.cnpj)
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+engine = create_engine("SQLALCHEMY_DATABASE_URL")
+Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+def get_db():
+    db = Session()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+class SessionLocal:
+    pass

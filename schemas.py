@@ -1,31 +1,29 @@
-# Pydantic Schemas
 from pydantic import BaseModel
-from typing import List, Optional
 
-# Esquemas de validação para cada entidade
 class EmpresaBase(BaseModel):
-    name: str
-    cnpj: str 
+    nome: str
+    cnpj: str
     endereco: str
     email: str
     telefone: str
-    
-    
+
+class EmpresaCreate(EmpresaBase):
+    pass
+
 class Empresa(EmpresaBase):
-    id: int  
-    obrigacoes: List["ObrigacaoAcessoria"] = []
-    
+    id: int
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class ObrigacaoAcessoriaBase(BaseModel):
     nome: str
     periodicidade: str
-    
+
+class ObrigacaoAcessoriaCreate(ObrigacaoAcessoriaBase):
+    empresa_id: int
+
 class ObrigacaoAcessoria(ObrigacaoAcessoriaBase):
-    id: int 
-    empresa_id: int 
-    
-    
+    id: int
+    empresa: Empresa
     class Config:
-        orm_mode = True
+        from_attributes = True
