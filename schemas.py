@@ -1,29 +1,24 @@
 from pydantic import BaseModel
 
-class EmpresaBase(BaseModel):
+class EmpresaSchemaIn(BaseModel):
     nome: str
     cnpj: str
     endereco: str
     email: str
     telefone: str
 
-class EmpresaCreate(EmpresaBase):
+class EmpresaSchemaOut(BaseModel):
+    id: int
+    nome: str
+    cnpj: str
+    endereco: str
+    email: str
+    telefone: str
+
+
+class ObrigacaoAcessoriaSchemaIn:
     pass
 
-class Empresa(EmpresaBase):
-    id: int
-    class Config:
-        from_attributes = True
 
-class ObrigacaoAcessoriaBase(BaseModel):
-    nome: str
-    periodicidade: str
-
-class ObrigacaoAcessoriaCreate(ObrigacaoAcessoriaBase):
-    empresa_id: int
-
-class ObrigacaoAcessoria(ObrigacaoAcessoriaBase):
-    id: int
-    empresa: Empresa
-    class Config:
-        from_attributes = True
+class ObrigacaoAcessoriaSchemaOut:
+    pass

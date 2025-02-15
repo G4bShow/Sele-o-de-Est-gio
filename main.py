@@ -1,90 +1,67 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
-from database import SessionLocal, get_db
-from models import Empresa, ObrigacaoAcessoria
-from schemas import EmpresaCreate, ObrigacaoAcessoriaCreate
-from typing import List
-
-app = FastAPI(
-    title="API de Empresas",
-    description="API para gerenciar empresas e obrigações acessórias",
-    version="1.0.0",
-    contact={
-        "name": "Seu Nome",
-        "email": "seu_email@example.com",
-    },
+from database import SessionLocal
+from modelEmpresa import Empresa, ObrigacaoAcessoria
+from schemas import (
+    EmpresaSchemaIn,
+    EmpresaSchemaOut,
+    ObrigacaoAcessoriaSchemaOut,
 )
 
-origins = [
-    "http://localhost:8000",
-]
+app = FastAPI()
+db = SessionLocal()  # Inicialize a sessão do banco de dados
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/empresas/")
-def read_empresas(db: SessionLocal = Depends(get_db)):
-    return db.query(Empresa).all()
-
-@app.post("/empresas/")
-def create_empresa(empresa: EmpresaCreate, db: SessionLocal = Depends(get_db)):
-    db_empresa = Empresa(**empresa.dict())
+@app.post("/empresas", response_model=EmpresaSchemaOut)
+def criar_empresa(empresa: EmpresaSchemaIn):
+    db_empresa = Empresa(**empresa.dict())  # Converte para o modelo SQLAlchemy
     db.add(db_empresa)
     db.commit()
     db.refresh(db_empresa)
     return db_empresa
 
-@app.get("/empresas/{empresa_id}")
-def read_empresa(empresa_id: int, db: SessionLocal = Depends(get_db)):
-    return db.query(Empresa).filter(Empresa.id == empresa_id).first()
-
-@app.put("/empresas/{empresa_id}")
-def update_empresa(empresa_id: int, empresa: EmpresaCreate, db: SessionLocal = Depends(get_db)):
-    db_empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
-    db_empresa.nome = empresa.nome
-    db_empresa.cnpj = empresa.cnpj
-    db_empresa.endereco = empresa.endereco
-    db_empresa.email = empresa.email
-    db_empresa.telefone = empresa.telefone
-    db.commit()
-    db.refresh(db_empresa)
+@app.get("/empresas/{empresa_id}", response_model=EmpresaSchemaOut)
+def obter_empresa(empresa_id: int):
+    db_empresa = db.get(Empresa, empresa_id)
+    if not db_empresa:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
     return db_empresa
 
-@app.delete("/empresas/{empresa_id}")
-def delete_empresa(empresa_id: int, db: SessionLocal = Depends(get_db)):
-    db_empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
-    db.delete(db_empresa)
-    db.commit()
-    return {"mensagem": "Empresa excluída com sucesso"}
+# Rotas similares para outras operações CRUD...
 
-@app.post("/obrigacoes-acessorias/")
-def create_obrigacao_acessoria(obrigacao_acessoria: ObrigacaoAcessoriaCreate, db: SessionLocal = Depends(get_db)):
-    db_obrigacao_acessoria = ObrigacaoAcessoria(**obrigacao_acessoria.dict())
-    db.add(db_obrigacao_acessoria)
-    db.commit()
-    db.refresh(db_obrigacao_acessoria)
-    return db_obrigacao_acessoria
+@app.get("/obrigacoes_acessorias/{empresa_id}", response_model=list[ObrigacaoAcessoriaSchemaOut])
+def listar_obrigacoes(empresa_id: int):
+    obrigacoes = db.query(ObrigacaoAcessoria).filter_by(empresa_id=empresa_id).all()
+    if not obrigacoes:
+        raise HTTPException(status_code=404, detail="Obrigações não encontradas")
+    return obrigacoes
 
-@app.get("/obrigacoes-acessorias/")
-def read_obrigacoes_acessorias(db: SessionLocal = Depends(get_db)):
-    return db.query(ObrigacaoAcessoria).all()
 
-@app.get("/obrigacoes-acessorias/{obrigacao_acessoria_id}")
-def read_obrigacao_acessoria(obrigacao_acessoria_id: int, db: SessionLocal = Depends(get_db)):
-    return db.query(ObrigacaoAcessoria).filter(ObrigacaoAcessoria.id == obrigacao_acessoria_id).first()
+app = FastAPI()
 
-@app.put("/obrigacoes-acessorias/{obrigacao_acessoria_id}")
-def update_obrigacao_acessoria(obrigacao_acessoria_id: int, obrigacao_acessoria: ObrigacaoAcessoriaCreate, db: SessionLocal = Depends(get_db)):
-    db_obrigacao_acessoria = db.query(ObrigacaoAcessoria).filter(ObrigacaoAcessoria.id == obrigacao_acessoria_id).first()
-    db_obrigacao_acessoria.nome = obrigacao_acessoria.nome
-    db_obrigacao_acessoria.periodicidade = obrigacao_acessoria.periodicidade
-    db.commit()
-    db.refresh(db_obrigacao_acessoria)
-    return db_obrigacao_acessoria
+# Configuração do CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    ...
+    openapi_schema = get_openapi(
+        title="API de Gestão de Obrigações",
+        version="1.0.0",
+        description="API para gerenciar empresas e suas obrigações acessórias.",
+        routes=app.routes,
+    )
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi()
+
